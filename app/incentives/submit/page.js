@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { uploadProof, proofPublicUrl } from "@/lib/supabase";
@@ -22,7 +22,19 @@ export default function SubmitClaim() {
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
+
+  // 드롭존 밖에 파일을 놓으면 브라우저가 그 파일로 이동해버려 작성 중이던 폼이 날아간다.
+  useEffect(() => {
+    const block = (e) => e.preventDefault();
+    window.addEventListener("dragover", block);
+    window.addEventListener("drop", block);
+    return () => {
+      window.removeEventListener("dragover", block);
+      window.removeEventListener("drop", block);
+    };
+  }, []);
 
   if (!perms.canSubmitClaim) {
     return (
@@ -38,10 +50,14 @@ export default function SubmitClaim() {
   const needPhoto = type === CLAIM_TYPES.PROMO;
   const canSubmit = merchant && (!needPhoto || photo) && !uploading;
 
-  const pickPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // 같은 파일을 다시 고를 수 있게 초기화
+  // 파일 선택 · 드롭 공통 경로
+  const handleFile = async (file) => {
     if (!file) return;
+    // 드롭은 accept 필터가 걸리지 않으므로 직접 확인한다.
+    if (!file.type.startsWith("image/")) {
+      setUploadError("이미지 파일만 업로드할 수 있습니다.");
+      return;
+    }
 
     setUploading(true);
     setUploadError(null);
@@ -53,6 +69,18 @@ export default function SubmitClaim() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const pickPhoto = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일을 다시 고를 수 있게 초기화
+    handleFile(file);
+  };
+
+  const dropPhoto = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (!uploading) handleFile(e.dataTransfer.files?.[0]);
   };
 
   const submit = () => {
@@ -122,7 +150,7 @@ export default function SubmitClaim() {
 
         {needPhoto && (
           <div className="mt-5">
-            <Field label="부착 사진 증빙" hint="이미지 파일을 선택하면 Supabase Storage에 업로드됩니다.">
+            <Field label="부착 사진 증빙" hint="이미지를 끌어다 놓거나 클릭해서 선택하면 Supabase Storage에 업로드됩니다.">
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
               {photo ? (
                 <div className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-4 py-3">
@@ -139,9 +167,20 @@ export default function SubmitClaim() {
                   type="button"
                   disabled={uploading}
                   onClick={() => fileRef.current?.click()}
-                  className="w-full rounded-xl border-2 border-dashed border-line py-8 text-sm text-ink-400 hover:border-kakao-yellowD hover:text-ink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={dropPhoto}
+                  className={`w-full rounded-xl border-2 border-dashed py-8 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                    dragOver
+                      ? "border-kakao-yellowD bg-kakao-yellow/15 text-ink-700"
+                      : "border-line text-ink-400 hover:border-kakao-yellowD hover:text-ink-600"
+                  }`}
                 >
-                  {uploading ? "업로드 중…" : "+ 부착 사진 업로드"}
+                  {uploading
+                    ? "업로드 중…"
+                    : dragOver
+                    ? "여기에 놓으세요"
+                    : "+ 부착 사진 — 끌어다 놓거나 클릭해서 선택"}
                 </button>
               )}
               {uploadError && (
