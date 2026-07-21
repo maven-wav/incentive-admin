@@ -84,9 +84,21 @@
 - [x] '선/후불' → '모집유형' 라벨 변경 (값·DB컬럼은 그대로)
 - [x] 결제검수 재설계 (활성화 · 총 결제건수 · 자동충족/수동판단)
 - [x] 가맹점 승인 되돌리기 (승인완료 → 등록대기, 사유 + `merchant_edit_history`)
+- [x] 홍보물부착 사진 실제 업로드 (Storage · 클릭 + 드래그앤드롭)
 - [ ] (선택) Supabase Auth + 역할 → 역할 스위처를 실제 로그인으로
-- [ ] 홍보물부착 사진 실제 업로드 (Storage)
 - [ ] (선택) 상태 이력을 검수 화면에 노출 (데이터는 이미 쌓이는 중)
+
+## 부착 사진 (Supabase Storage)
+- 버킷 **`proofs`** (public) · 정책 `proofs_demo_read`(SELECT/anon) + `proofs_demo_insert`(INSERT/anon)
+- `lib/supabase.js` 의 `uploadProof(file)` → 저장 경로 반환 → `incentive_claims.proof_photo` 에 저장.
+  표시는 `proofPublicUrl(path)`.
+- ⚠️ **Storage는 키에 한글 등 비ASCII를 넣으면 `InvalidKey`로 거부한다.**
+  그래서 `storageKeyFor()`가 확장자를 분리하고 파일명을 ASCII로 정리한다.
+  (`스크린샷 2026-07-22 오후 1.32.05.png` → `<타임스탬프>_2026-07-22_1.32.05.png`)
+- ⚠️ **초기 시드의 `proof_photo`는 실제 파일이 없는 파일명 문자열**('부착사진_○○.jpg')이라
+  공개 URL이 404다. 검수 모달의 `ProofImage`가 `onError`로 안내 화면을 대신 띄운다.
+- ⚠️ **anon에 DELETE 정책이 없다.** '제거'는 로컬 상태만 비우므로 올렸다 제거한 파일은
+  버킷에 그대로 남는다(고아 파일). 정리하려면 DELETE 정책 추가 + 제거 시 삭제 호출 필요.
 
 ## 상태 되돌리기(undo) 설계
 - 상태 변경은 항상 `claim_status_history`에 기록(누가·언제·왜).
