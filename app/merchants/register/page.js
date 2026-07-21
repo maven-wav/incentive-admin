@@ -38,11 +38,14 @@ export default function RegisterMerchant() {
     );
   }
 
-  const submit = (e) => {
+  const canSave = form.name && form.bizNo && form.agencyId && cidCheck.ok;
+
+  const submit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.bizNo || !form.agencyId || !cidCheck.ok) return;
-    registerMerchant({ ...form, allianceId: persona.scopeId });
-    router.push("/merchants");
+    if (!canSave) return;
+    // 등록 실패 시 목록으로 넘기면 방금 만든 가맹점이 없어 혼란스럽다.
+    const created = await registerMerchant({ ...form, allianceId: persona.scopeId });
+    if (created) router.push("/merchants");
   };
 
   return (
@@ -129,7 +132,7 @@ export default function RegisterMerchant() {
             <Button type="button" variant="ghost" onClick={() => router.push("/merchants")}>
               취소
             </Button>
-            <Button type="submit" variant="primary" disabled={!form.agencyId || !cidCheck.ok}>
+            <Button type="submit" variant="primary" disabled={!canSave}>
               저장 · 등록 신청
             </Button>
           </div>

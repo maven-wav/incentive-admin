@@ -87,13 +87,15 @@ export default function SubmitClaim() {
     if (!uploading) handleFile(e.dataTransfer.files?.[0]);
   };
 
-  const submit = () => {
+  // 중복 접수·DB 실패 시에는 화면을 옮기지 않는다. 옮겨버리면 실패 토스트만
+  // 스치고 검수 목록으로 넘어가서 접수된 것처럼 보인다.
+  const submit = async () => {
     if (!canSubmit) return;
-    submitClaim({
+    const created = await submitClaim({
       merchantId, agencyId: merchant.agencyId, type, claimMonth,
       proofPhoto: needPhoto ? photo : null,
     });
-    router.push("/incentives/review");
+    if (created) router.push("/incentives/review");
   };
 
   return (
