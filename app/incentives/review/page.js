@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { proofPublicUrl } from "@/lib/supabase";
 import { Card, Pill, Button, Input, Select, Field, Th, Td, EmptyRow, Notice, TypeTag, YN } from "@/components/ui";
 import { CLAIM_STATUS, CLAIM_TYPES, TXN_TOTAL_CRITERIA } from "@/lib/mockData";
 import { verifyPayment } from "@/lib/quatro";
@@ -149,9 +150,8 @@ export default function ReviewClaims() {
           <div className="bg-white rounded-2xl shadow-pop w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-line font-bold text-ink-900">부착 사진 증빙</div>
             <div className="p-6">
-              <div className="aspect-video rounded-xl bg-gradient-to-br from-kakao-yellow/40 to-canvas flex items-center justify-center text-5xl">🏪</div>
-              <div className="text-sm text-ink-500 mt-3">{photo}</div>
-              <Notice tone="info" >프로토타입 예시 이미지입니다 · 실개발 시 Supabase Storage 업로드 이미지가 표시됩니다.</Notice>
+              <ProofImage key={photo} path={photo} />
+              <div className="text-sm text-ink-500 mt-3 break-all">{photo}</div>
             </div>
             <div className="px-6 py-4 border-t border-line flex justify-end">
               <Button variant="ghost" onClick={() => setPhoto(null)}>닫기</Button>
@@ -172,6 +172,31 @@ export default function ReviewClaims() {
         />
       )}
     </div>
+  );
+}
+
+// 부착 사진 — Storage 업로드 이미지를 그대로 보여준다.
+// 초기 시드는 실제 파일이 없는 파일명 문자열이라 로드에 실패한다 → 안내로 대체.
+function ProofImage({ path }) {
+  const [failed, setFailed] = useState(false);
+  const url = proofPublicUrl(path);
+
+  if (!url || failed) {
+    return (
+      <div className="space-y-3">
+        <div className="aspect-video rounded-xl bg-gradient-to-br from-kakao-yellow/40 to-canvas flex items-center justify-center text-5xl">🏪</div>
+        <Notice tone="warn">실제 업로드 이미지가 없는 초기 시드 데이터입니다. 새로 접수한 건은 업로드 사진이 표시됩니다.</Notice>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      alt="부착 사진 증빙"
+      onError={() => setFailed(true)}
+      className="w-full max-h-[60vh] object-contain rounded-xl border border-line bg-canvas"
+    />
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
+import { uploadProof, proofPublicUrl } from "@/lib/supabase";
 import { Card, Field, Select, Button, Notice, TypeTag } from "@/components/ui";
-import { CLAIM_TYPES, INCENTIVE_AMOUNT, MERCHANT_STATUS } from "@/lib/mockData";
+import { CLAIM_TYPES, INCENTIVE_AMOUNT, MERCHANT_STATUS, TXN_TOTAL_CRITERIA } from "@/lib/mockData";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 const thisMonth = "2026-07";
@@ -17,7 +18,11 @@ export default function SubmitClaim() {
   const [type, setType] = useState(CLAIM_TYPES.RECRUIT);
   const [merchantId, setMerchantId] = useState(approved[0]?.id || "");
   const [claimMonth, setClaimMonth] = useState(thisMonth);
+  // photo = Storage 저장 경로 (proof_photo에 그대로 들어간다)
   const [photo, setPhoto] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const fileRef = useRef(null);
 
   if (!perms.canSubmitClaim) {
     return (
@@ -31,7 +36,24 @@ export default function SubmitClaim() {
 
   const merchant = approved.find((m) => m.id === merchantId);
   const needPhoto = type === CLAIM_TYPES.PROMO;
-  const canSubmit = merchant && (!needPhoto || photo);
+  const canSubmit = merchant && (!needPhoto || photo) && !uploading;
+
+  const pickPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일을 다시 고를 수 있게 초기화
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      setPhoto(await uploadProof(file));
+    } catch (err) {
+      console.error("[부착 사진 업로드]", err);
+      setUploadError(err.message || "업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = () => {
     if (!canSubmit) return;
@@ -54,7 +76,7 @@ export default function SubmitClaim() {
       <Card title="① 시책 유형 분기" desc="가맹 모집 / 홍보물 부착">
         <div className="grid grid-cols-2 gap-4">
           {[
-            { key: CLAIM_TYPES.RECRUIT, emoji: "🤝", desc: "가맹 연결 — 콰트로 결제검수(월 3건 기준)로 자동 검증" },
+            { key: CLAIM_TYPES.RECRUIT, emoji: "🤝", desc: `가맹 연결 — 결제검수(가맹·활성화·3개월 총 ${TXN_TOTAL_CRITERIA}건)로 자동 판정` },
             { key: CLAIM_TYPES.PROMO, emoji: "📸", desc: "홍보물 부착 — 부착 사진 업로드, 담당자 육안 검수" },
           ].map((t) => (
             <button
@@ -100,20 +122,32 @@ export default function SubmitClaim() {
 
         {needPhoto && (
           <div className="mt-5">
-            <Field label="부착 사진 증빙" hint="프로토타입: 실제 업로드 대신 예시 파일로 대체됩니다 (실개발 시 Supabase Storage).">
+            <Field label="부착 사진 증빙" hint="이미지 파일을 선택하면 Supabase Storage에 업로드됩니다.">
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
               {photo ? (
                 <div className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-4 py-3">
-                  <span className="w-12 h-12 rounded-lg bg-kakao-yellow/40 flex items-center justify-center text-xl">🖼</span>
-                  <span className="text-sm text-ink-700">{photo}</span>
-                  <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setPhoto(null)}>제거</Button>
+                  <img
+                    src={proofPublicUrl(photo)}
+                    alt="부착 사진 미리보기"
+                    className="w-16 h-16 rounded-lg object-cover border border-line bg-white shrink-0"
+                  />
+                  <span className="text-sm text-ink-700 break-all">{photo}</span>
+                  <Button size="sm" variant="ghost" className="ml-auto shrink-0" onClick={() => setPhoto(null)}>제거</Button>
                 </div>
               ) : (
                 <button
-                  onClick={() => setPhoto(`부착사진_${merchant?.name || "가맹점"}.jpg`)}
-                  className="w-full rounded-xl border-2 border-dashed border-line py-8 text-sm text-ink-400 hover:border-kakao-yellowD hover:text-ink-600"
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full rounded-xl border-2 border-dashed border-line py-8 text-sm text-ink-400 hover:border-kakao-yellowD hover:text-ink-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  + 부착 사진 업로드 (예시)
+                  {uploading ? "업로드 중…" : "+ 부착 사진 업로드"}
                 </button>
+              )}
+              {uploadError && (
+                <div className="mt-2">
+                  <Notice tone="warn">업로드 실패 — {uploadError}</Notice>
+                </div>
               )}
             </Field>
           </div>
