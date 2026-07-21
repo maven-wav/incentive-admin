@@ -4,39 +4,35 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { Card, Field, Input, Select, Button, Notice } from "@/components/ui";
-import { STORE_TYPES, PREPAID_TYPES } from "@/lib/mockData";
+import { STORE_TYPES, RECRUIT_TYPES } from "@/lib/mockData";
 import { inspectCid } from "@/lib/cid";
 
 const STEPS = ["유형구분", "정보기재", "저장", "담당자 승인", "등록완료"];
 
 export default function RegisterMerchant() {
   const router = useRouter();
-  const { persona, perms, agencies, allianceOfAgency, registerMerchant } = useStore();
+  const { persona, perms, agencies, allianceById, registerMerchant } = useStore();
 
-  const selectableAgencies =
-    persona.role === "대리점"
-      ? agencies.filter((a) => a.id === persona.scopeId)
-      : persona.role === "얼라이언스사"
-      ? agencies.filter((a) => a.allianceId === persona.scopeId)
-      : agencies;
+  // VAN 대리점은 공용 풀이라 얼라이언스와 무관하게 전부 선택 가능하다.
+  // 얼라이언스는 로그인한 페르소나로 고정된다.
+  const alliance = allianceById(persona.scopeId);
 
   const [form, setForm] = useState({
     storeType: STORE_TYPES[0],
     name: "",
     bizNo: "",
     cid: "",
-    prepaidType: PREPAID_TYPES[0],
-    agencyId: selectableAgencies[0]?.id || "",
+    recruitType: RECRUIT_TYPES[0],
+    agencyId: "",
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const cidCheck = inspectCid(form.cid);
-  const alliance = allianceOfAgency(form.agencyId);
 
   if (!perms.canRegister) {
     return (
       <Card title="가맹점 등록">
         <Notice tone="warn">
-          가맹점 등록은 <b>대리점 / 얼라이언스사</b> 권한에서만 가능합니다. 우측 상단에서 역할을 전환해 보세요.
+          가맹점 등록은 <b>얼라이언스사</b> 권한에서만 가능합니다. 우측 상단에서 역할을 전환해 보세요.
         </Notice>
       </Card>
     );
@@ -44,8 +40,8 @@ export default function RegisterMerchant() {
 
   const submit = (e) => {
     e.preventDefault();
-    if (!form.name || !form.bizNo || !cidCheck.ok) return;
-    registerMerchant(form);
+    if (!form.name || !form.bizNo || !form.agencyId || !cidCheck.ok) return;
+    registerMerchant({ ...form, allianceId: persona.scopeId });
     router.push("/merchants");
   };
 
@@ -103,27 +99,28 @@ export default function RegisterMerchant() {
               <Input value={form.cid} onChange={set("cid")} placeholder="예) CQP05FGZM6SCRX6" />
               {form.cid && cidCheck.warning && (
                 <div className="mt-2">
-                  <Notice tone={cidCheck.ok ? "warn" : "warn"}>⚠️ {cidCheck.warning}</Notice>
+                  <Notice tone="warn">⚠️ {cidCheck.warning}</Notice>
                 </div>
               )}
             </Field>
-            <Field label="선/후불 구분">
-              <Select value={form.prepaidType} onChange={set("prepaidType")}>
-                {PREPAID_TYPES.map((t) => (
+            <Field label="모집유형">
+              <Select value={form.recruitType} onChange={set("recruitType")}>
+                {RECRUIT_TYPES.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="대리점명">
-              <Select value={form.agencyId} onChange={set("agencyId")} disabled={persona.role === "대리점"}>
-                {selectableAgencies.map((a) => (
+            <Field label="대리점명" hint="VAN 대리점은 공용 풀에서 자유롭게 선택합니다.">
+              <Select value={form.agencyId} onChange={set("agencyId")}>
+                <option value="">대리점을 선택하세요</option>
+                {agencies.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="얼라이언스 (자동)" hint="선택한 대리점 소속에서 자동 지정">
+            <Field label="얼라이언스 (자동)" hint="로그인한 얼라이언스사로 지정됩니다">
               <Input value={alliance?.name || "—"} disabled className="bg-canvas text-ink-500" />
             </Field>
           </div>
@@ -132,7 +129,7 @@ export default function RegisterMerchant() {
             <Button type="button" variant="ghost" onClick={() => router.push("/merchants")}>
               취소
             </Button>
-            <Button type="submit" variant="primary" disabled={!cidCheck.ok}>
+            <Button type="submit" variant="primary" disabled={!form.agencyId || !cidCheck.ok}>
               저장 · 등록 신청
             </Button>
           </div>

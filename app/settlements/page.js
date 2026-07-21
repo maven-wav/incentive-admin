@@ -9,7 +9,9 @@ const won = (n) => n.toLocaleString("ko-KR") + "원";
 const settleMonth = "2026-07";
 
 export default function Settlements() {
-  const { perms, visibleClaims, merchantById, agencyById, allianceOfAgency, confirmPayment, persona } = useStore();
+  // 지급은 대리점 계좌로 나가고, 공용 대리점은 여러 얼라이언스에 걸치므로
+  // 정산 묶음은 대리점 단위로만 만든다.
+  const { perms, visibleClaims, merchantById, agencyById, confirmPayment, persona } = useStore();
 
   const waiting = visibleClaims.filter((c) => c.status === CLAIM_STATUS.WAIT);
   const paid = visibleClaims.filter((c) => c.status === CLAIM_STATUS.PAID);
@@ -57,9 +59,7 @@ export default function Settlements() {
               <div key={agencyId} className="rounded-2xl border border-line overflow-hidden">
                 <div className="flex items-center justify-between bg-canvas px-5 py-3">
                   <div>
-                    <div className="font-bold text-ink-900">
-                      {agency?.name} <span className="text-xs font-normal text-ink-400">· {allianceOfAgency(agencyId)?.name}</span>
-                    </div>
+                    <div className="font-bold text-ink-900">{agency?.name}</div>
                     <div className="text-xs text-ink-400 mt-0.5">{agency?.bankAccount}</div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -103,7 +103,6 @@ export default function Settlements() {
             <thead className="bg-canvas border-b border-line">
               <tr>
                 <Th className="pl-5">확정월</Th>
-                <Th>얼라이언스</Th>
                 <Th>대리점</Th>
                 <Th>계좌</Th>
                 <Th>건수</Th>
@@ -111,7 +110,7 @@ export default function Settlements() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {paidGroups.length === 0 && <EmptyRow colSpan={6} />}
+              {paidGroups.length === 0 && <EmptyRow colSpan={5} />}
               {paidGroups.map((g) => (
                 <tr key={g.month + g.agencyId} className="hover:bg-canvas/60">
                   <Td className="pl-5">
@@ -119,7 +118,6 @@ export default function Settlements() {
                       {g.month} <Pill>지급확정</Pill>
                     </span>
                   </Td>
-                  <Td>{allianceOfAgency(g.agencyId)?.name}</Td>
                   <Td className="font-semibold text-ink-900">{agencyById(g.agencyId)?.name}</Td>
                   <Td className="text-ink-500 text-xs">{agencyById(g.agencyId)?.bankAccount}</Td>
                   <Td>{g.items.length}건</Td>

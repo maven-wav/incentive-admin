@@ -58,7 +58,7 @@ export default function Dashboard() {
                 <div>
                   <div className="text-sm font-semibold text-ink-800">{m.name}</div>
                   <div className="text-xs text-ink-400 mt-0.5">
-                    {m.storeType} · {m.prepaidType} · 등록 {m.registeredAt}
+                    {m.storeType} · {m.recruitType} · 등록 {m.registeredAt}
                   </div>
                 </div>
                 <Pill>{m.status}</Pill>

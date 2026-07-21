@@ -3,13 +3,16 @@
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { Card, Pill, Button, Input, Select, Field, Th, Td, EmptyRow, Notice, TypeTag, YN } from "@/components/ui";
-import { CLAIM_STATUS, TXN_CRITERIA } from "@/lib/mockData";
+import { CLAIM_STATUS, CLAIM_TYPES, TXN_TOTAL_CRITERIA } from "@/lib/mockData";
 import { verifyPayment } from "@/lib/quatro";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 
 export default function ReviewClaims() {
-  const { perms, visibleClaims, merchantById, agencyById, allianceOfAgency, reviewClaim, revertClaim, persona } = useStore();
+  const {
+    perms, visibleClaims, merchantById, agencyById, allianceOfClaim,
+    reviewClaim, revertClaim, persona,
+  } = useStore();
   const [fStatus, setFStatus] = useState("");
   const [checked, setChecked] = useState({});
   const [photo, setPhoto] = useState(null);
@@ -45,8 +48,8 @@ export default function ReviewClaims() {
         <div>
           <h1 className="text-2xl font-extrabold text-ink-900">시책 검수</h1>
           <p className="text-sm text-ink-500 mt-1.5">
-            검수대기 건을 확인합니다. 가맹모집은 콰트로 결제검수(등록월 포함 최근 3개월, 각 월 {TXN_CRITERIA}건 이상 = Y),
-            홍보물부착은 부착 사진을 확인 후 승인합니다.
+            가맹모집은 결제검수(가맹 · 활성화 · 3개월 총 결제 {TXN_TOTAL_CRITERIA}건 이상 → 자동충족),
+            홍보물부착은 부착 사진을 확인 후 승인합니다. 비가맹은 내부 확인이 불가해 수동 판단합니다.
           </p>
         </div>
         <span className="text-sm text-ink-400">{rows.length}건</span>
@@ -77,21 +80,21 @@ export default function ReviewClaims() {
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} className="accent-kakao-yellowD w-4 h-4" />
                 </Th>
                 <Th>가맹점</Th>
-                <Th>유형</Th>
+                <Th>시책유형</Th>
+                <Th>모집유형</Th>
                 <Th>얼라이언스</Th>
                 <Th>대리점</Th>
                 <Th>접수월</Th>
-                <Th>결제검수 (콰트로)</Th>
+                <Th>결제검수</Th>
                 <Th>금액</Th>
                 <Th>상태</Th>
                 <Th className="text-right pr-5">검수</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {rows.length === 0 && <EmptyRow colSpan={10} />}
+              {rows.length === 0 && <EmptyRow colSpan={11} />}
               {rows.map((c) => {
                 const m = merchantById(c.merchantId);
-                const v = c.type === "가맹모집" ? verifyPayment(c.txnCounts) : null;
                 return (
                   <tr key={c.id} className="hover:bg-canvas/60">
                     <Td className="pl-5">
@@ -104,15 +107,13 @@ export default function ReviewClaims() {
                     </Td>
                     <Td className="font-semibold text-ink-900">{m?.name}</Td>
                     <Td><TypeTag>{c.type}</TypeTag></Td>
-                    <Td>{allianceOfAgency(c.agencyId)?.name}</Td>
+                    <Td className="text-ink-500">{m?.recruitType || "—"}</Td>
+                    <Td>{allianceOfClaim(c)?.name}</Td>
                     <Td>{agencyById(c.agencyId)?.name}</Td>
                     <Td className="text-ink-500">{c.claimMonth}</Td>
                     <Td>
-                      {c.type === "가맹모집" ? (
-                        <div className="flex items-center gap-2">
-                          <YN value={v.pass} />
-                          <span className="text-xs text-ink-400 font-mono">[{c.txnCounts.join(", ")}]</span>
-                        </div>
+                      {c.type === CLAIM_TYPES.RECRUIT ? (
+                        <PaymentReview claim={c} recruitType={m?.recruitType} />
                       ) : (
                         <button className="text-xs font-semibold text-sky-600 hover:underline" onClick={() => setPhoto(c.proofPhoto)}>
                           🖼 사진 보기
@@ -169,6 +170,41 @@ export default function ReviewClaims() {
             setReverting(null);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// 결제검수 = 가맹여부 · 활성화 · 3개월 총 결제건수
+// 비가맹은 내부에서 확인할 수 없어 항상 수동 판단으로 넘어간다.
+function PaymentReview({ claim, recruitType }) {
+  const v = verifyPayment({ recruitType, isActive: claim.isActive, txnTotal: claim.txnTotal });
+
+  if (!v.gamaeng) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-md border bg-slate-50 text-ink-500 border-line">
+          비가맹
+        </span>
+        <span className="text-xs text-ink-400">확인불가 · 수동판단</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="inline-flex items-center gap-1 text-xs text-ink-500">
+        활성화 <YN value={v.active} />
+      </span>
+      <span className="text-xs text-ink-500 font-mono">{v.txnTotal}건</span>
+      {v.auto ? (
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-100">
+          자동충족
+        </span>
+      ) : (
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-100">
+          수동판단
+        </span>
       )}
     </div>
   );

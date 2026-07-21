@@ -40,11 +40,37 @@
   )
   ```
 
+## ⚠️ 용어 (헷갈리기 쉬움)
+- **모집유형** = `merchants.prepaid_type` (가맹선불/비가맹선불/가맹후불/비가맹후불/PG선불).
+  화면 라벨만 '모집유형'이고 **DB 컬럼명은 `prepaid_type` 그대로**다. 코드 상수는 `RECRUIT_TYPES`.
+- **시책 유형** = `incentive_claims.type` (가맹모집/홍보물부착). 위와 **완전히 별개 필드**다.
+- 상태값·모집유형 값은 전부 DB enum/문자열이라 **값 자체를 바꾸려면 마이그레이션**이 필요하다.
+
+## 데이터 모델 — 얼라이언스와 대리점은 독립
+- `merchants`에 `alliance_id`·`agency_id`가 **각각 독립 컬럼**으로 있다.
+  (예전처럼 대리점에서 얼라이언스를 파생하지 않는다.)
+- **VAN 대리점은 공용 풀(28개).** 같은 대리점을 여러 얼라이언스가 쓸 수 있다.
+  실제로 (주)그린페이는 3사, (주)다온시스템·현페이먼트는 2사가 공유 중.
+- **역할 스코핑은 항상 `merchant.alliance_id` 기준.** 시책의 얼라이언스는 가맹점에서 따라온다.
+- 그래서 **정산 묶음은 대리점 단위로만** 만든다 (지급이 대리점 계좌로 나가고,
+  공용 대리점은 얼라이언스가 단일값이 아니라서).
+
 ## 테이블 (dalmuti / incentive_admin) — 이미 생성 + 시드됨
 `alliances` / `agencies` / `merchants` / `merchant_edit_history` / `incentive_claims` / `claim_status_history`
 - enum: `merchant_status`, `claim_status`, `claim_type`
-- 시드: 얼라이언스 3 · 대리점 3 · 가맹점 17 · 시책 11
+- 시드: 얼라이언스 3(오케이포스·유니온소프트·이지포스) · 대리점 28 · 가맹점 17 · 시책 11
+- `incentive_claims.is_active`(활성화) + `txn_total`(3개월 총 결제건수) — 결제검수용
+- 제거된 컬럼: `agencies.alliance_id`(공용 풀과 충돌), `incentive_claims.txn_counts`(→ `txn_total`)
 - RLS: 목업 단계라 `demo_all`(anon/authenticated 전체 허용). 실제 Auth 붙일 때 역할별 정책으로 교체.
+
+## 결제검수 (시책유형 '가맹모집'에만 적용) — `lib/quatro.js`
+3요소로 판정한다:
+1. **가맹 여부** — 가맹선불·가맹후불만 '가맹'. 나머지는 비가맹.
+2. **활성화(Y/N)** — 가맹은 카카오페이 가맹심사 완료 여부. **비가맹은 내부 확인 불가라 항상 N.**
+3. **3개월 총 결제건수** — 가맹은 숫자, 비가맹은 '확인불가'(null).
+
+→ 가맹 AND 활성화 Y AND 총 결제 ≥ `TXN_TOTAL_CRITERIA` 이면 **'자동충족'** 배지.
+   비가맹·미충족은 **'수동판단'** 배지가 붙고 관리자가 직접 승인/반려한다.
 
 ## 작업 체크리스트
 - [x] `lib/supabase.js` 클라이언트 (schema: incentive_admin)
@@ -53,6 +79,11 @@
       - 액션은 async → DB write 후 응답 row로 state 갱신 (refetch 레이스 없음)
       - `mockData.js`는 상수(enum·단가·기준값)만 남기고 시드 배열 제거
 - [x] 상태 되돌리기 버튼 + `claim_status_history` 기록 (지급확정 건은 잠금)
+- [x] 얼라이언스↔대리점 독립화 + VAN 대리점 공용 풀 28개
+- [x] 역할 스위처에서 VAN대리점 페르소나 제거 (내부 + 얼라이언스 3사)
+- [x] '선/후불' → '모집유형' 라벨 변경 (값·DB컬럼은 그대로)
+- [x] 결제검수 재설계 (활성화 · 총 결제건수 · 자동충족/수동판단)
+- [x] 가맹점 승인 되돌리기 (승인완료 → 등록대기, 사유 + `merchant_edit_history`)
 - [ ] (선택) Supabase Auth + 역할 → 역할 스위처를 실제 로그인으로
 - [ ] 홍보물부착 사진 실제 업로드 (Storage)
 - [ ] (선택) 상태 이력을 검수 화면에 노출 (데이터는 이미 쌓이는 중)
@@ -64,4 +95,6 @@
 
 ## ⚠️ 임시값 (실정책으로 교체)
 - 시책 단가: 가맹모집 30,000 / 홍보물부착 20,000 (`lib/mockData.js`)
-- 결제검수 기준: 등록월 포함 최근 3개월, 각 월 3건 이상 = Y (`TXN_CRITERIA`)
+- 결제검수 기준: 3개월 **총** 결제 4건 이상 (`TXN_TOTAL_CRITERIA`)
+- **PG선불을 비가맹으로 분류** (`isGamaeng()` — `lib/mockData.js`). 실제 정책 확인 필요.
+- 대리점 28곳 계좌번호는 전부 placeholder

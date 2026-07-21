@@ -23,7 +23,7 @@ export default function SubmitClaim() {
     return (
       <Card title="시책 접수">
         <Notice tone="warn">
-          시책 접수(증빙 등록)는 <b>대리점 / 얼라이언스사</b> 권한에서만 가능합니다. 우측 상단에서 역할을 전환해 보세요.
+          시책 접수(증빙 등록)는 <b>얼라이언스사</b> 권한에서만 가능합니다. 우측 상단에서 역할을 전환해 보세요.
         </Notice>
       </Card>
     );
