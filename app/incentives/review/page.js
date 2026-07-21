@@ -2,17 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
-import { Card, Pill, Button, Select, Field, Th, Td, EmptyRow, Notice, TypeTag, YN } from "@/components/ui";
+import { Card, Pill, Button, Input, Select, Field, Th, Td, EmptyRow, Notice, TypeTag, YN } from "@/components/ui";
 import { CLAIM_STATUS, TXN_CRITERIA } from "@/lib/mockData";
 import { verifyPayment } from "@/lib/quatro";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 
 export default function ReviewClaims() {
-  const { perms, visibleClaims, merchantById, agencyById, allianceOfAgency, reviewClaim, persona } = useStore();
+  const { perms, visibleClaims, merchantById, agencyById, allianceOfAgency, reviewClaim, revertClaim, persona } = useStore();
   const [fStatus, setFStatus] = useState("");
   const [checked, setChecked] = useState({});
   const [photo, setPhoto] = useState(null);
+  const [reverting, setReverting] = useState(null);
 
   const rows = useMemo(
     () => visibleClaims.filter((c) => (fStatus ? c.status === fStatus : true)),
@@ -126,6 +127,10 @@ export default function ReviewClaims() {
                           <Button size="sm" variant="approve" onClick={() => reviewClaim(c.id, true, persona.label)}>승인</Button>
                           <Button size="sm" variant="danger" onClick={() => reviewClaim(c.id, false, persona.label)}>반려</Button>
                         </span>
+                      ) : c.status === CLAIM_STATUS.PAID ? (
+                        <span className="text-xs text-ink-400" title="지급확정 건은 되돌릴 수 없습니다">🔒 지급확정</span>
+                      ) : perms.canRevertClaim ? (
+                        <Button size="sm" variant="ghost" onClick={() => setReverting(c)}>승인 취소</Button>
                       ) : (
                         <span className="text-xs text-ink-400">{c.reviewedBy || "—"}</span>
                       )}
@@ -153,6 +158,46 @@ export default function ReviewClaims() {
           </div>
         </div>
       )}
+
+      {reverting && (
+        <RevertModal
+          claim={reverting}
+          merchantName={merchantById(reverting.merchantId)?.name}
+          onClose={() => setReverting(null)}
+          onConfirm={(reason) => {
+            revertClaim(reverting.id, reason, persona.label);
+            setReverting(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// 상태 되돌리기 — 사유를 반드시 남긴다 (claim_status_history에 기록됨)
+function RevertModal({ claim, merchantName, onClose, onConfirm }) {
+  const [reason, setReason] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line">
+          <h3 className="font-bold text-ink-900">승인 취소 — {merchantName}</h3>
+          <p className="text-xs text-ink-500 mt-1">
+            <b>{claim.status}</b> → <b>검수대기</b> 로 되돌립니다. 검수자 정보는 초기화됩니다.
+          </p>
+        </header>
+        <div className="p-6 space-y-5">
+          <Field label="취소 사유" hint="누가·언제·왜 되돌렸는지 상태 이력에 기록됩니다.">
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="예) 증빙 사진 오등록으로 재검수 필요" />
+          </Field>
+          {!reason && <Notice tone="warn">취소 사유를 입력해야 되돌릴 수 있습니다.</Notice>}
+        </div>
+        <footer className="px-6 py-4 border-t border-line flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>닫기</Button>
+          <Button variant="danger" disabled={!reason} onClick={() => onConfirm(reason)}>승인 취소</Button>
+        </footer>
+      </div>
     </div>
   );
 }

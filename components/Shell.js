@@ -15,7 +15,7 @@ const NAV = [
 
 export default function Shell({ children }) {
   const pathname = usePathname();
-  const { persona, setPersonaKey, perms, toast } = useStore();
+  const { persona, setPersonaKey, perms, toast, loading, loadError } = useStore();
 
   const roleTone =
     persona.role === "내부"
@@ -59,7 +59,7 @@ export default function Shell({ children }) {
           })}
         </nav>
         <div className="px-5 py-3 border-t border-line text-[10px] text-ink-400">
-          프로토타입 · 목데이터 · 콰트로 Mock
+          프로토타입 · Supabase · 콰트로 Mock
         </div>
       </aside>
 
@@ -86,7 +86,22 @@ export default function Shell({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 px-10 py-7 w-full">{children}</main>
+        <main className="flex-1 px-10 py-7 w-full">
+          {loadError ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 max-w-2xl">
+              <div className="font-bold text-rose-900">데이터를 불러오지 못했습니다</div>
+              <p className="text-sm text-rose-700 mt-2 font-mono break-all">{loadError}</p>
+              <p className="text-xs text-rose-600 mt-3 leading-relaxed">
+                스키마 관련 오류(PGRST106)라면 Supabase 대시보드 → Settings → API →
+                Exposed schemas 에 <b>incentive_admin</b> 이 추가되어 있는지 확인하세요.
+              </p>
+            </div>
+          ) : loading ? (
+            <div className="text-sm text-ink-400 py-20 text-center">불러오는 중…</div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
 
       {toast && (

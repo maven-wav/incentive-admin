@@ -40,11 +40,15 @@
 - RLS: 목업 단계라 `demo_all`(anon/authenticated 전체 허용). 실제 Auth 붙일 때 역할별 정책으로 교체.
 
 ## 작업 체크리스트
-- [ ] `lib/supabase.js` 클라이언트 (schema: incentive_admin)
-- [ ] `lib/store.js` → Supabase 쿼리로 교체 (Context 구조는 유지, 데이터소스만 스왑)
-- [ ] 상태 되돌리기 버튼 + `claim_status_history` 기록 (지급확정 건은 잠금)
+- [x] `lib/supabase.js` 클라이언트 (schema: incentive_admin)
+- [x] `lib/store.js` → Supabase 쿼리로 교체 (Context 구조는 유지, 데이터소스만 스왑)
+      - snake_case↔camelCase 매퍼를 store 내부에 둬서 페이지 코드는 무변경
+      - 액션은 async → DB write 후 응답 row로 state 갱신 (refetch 레이스 없음)
+      - `mockData.js`는 상수(enum·단가·기준값)만 남기고 시드 배열 제거
+- [x] 상태 되돌리기 버튼 + `claim_status_history` 기록 (지급확정 건은 잠금)
 - [ ] (선택) Supabase Auth + 역할 → 역할 스위처를 실제 로그인으로
 - [ ] 홍보물부착 사진 실제 업로드 (Storage)
+- [ ] (선택) 상태 이력을 검수 화면에 노출 (데이터는 이미 쌓이는 중)
 
 ## 상태 되돌리기(undo) 설계
 - 상태 변경은 항상 `claim_status_history`에 기록(누가·언제·왜).
