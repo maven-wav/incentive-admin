@@ -16,7 +16,11 @@ export default function SubmitClaim() {
 
   const approved = visibleMerchants.filter((m) => m.status === MERCHANT_STATUS.APPROVED);
   const [type, setType] = useState(CLAIM_TYPES.RECRUIT);
-  const [merchantId, setMerchantId] = useState(approved[0]?.id || "");
+  // 역할을 바꾸면 보이는 가맹점 목록이 통째로 달라진다. 이전 선택을 그대로 들고 있으면
+  // 드롭다운은 브라우저 기본값(첫 항목)을 보여주는데 실제 선택값은 목록에 없는 가맹점이라,
+  // 접수 버튼이 아무 설명 없이 잠긴다. 목록에 없으면 첫 항목으로 되돌린다.
+  const [pickedId, setPickedId] = useState("");
+  const merchantId = approved.some((m) => m.id === pickedId) ? pickedId : approved[0]?.id || "";
   const [claimMonth, setClaimMonth] = useState(thisMonth);
   // photo = Storage 저장 경로 (proof_photo에 그대로 들어간다)
   const [photo, setPhoto] = useState(null);
@@ -130,7 +134,7 @@ export default function SubmitClaim() {
       <Card title="② 대상 가맹점 & 증빙">
         <div className="grid md:grid-cols-2 gap-5">
           <Field label="가맹점 (승인완료 건만)">
-            <Select value={merchantId} onChange={(e) => setMerchantId(e.target.value)}>
+            <Select value={merchantId} onChange={(e) => setPickedId(e.target.value)}>
               {approved.length === 0 && <option value="">승인완료 가맹점 없음</option>}
               {approved.map((m) => (
                 <option key={m.id} value={m.id}>
