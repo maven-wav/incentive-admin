@@ -18,16 +18,15 @@
 ## Supabase 연결
 - **프로젝트**: dalmuti (기존 프로젝트에 스키마 분리, Free 플랜 · 월 $0)
 - **스키마**: `incentive_admin` (public 아님)
-- ⚠️ **스키마 노출 — 현재 SQL로 적용되어 있음 (불안정)**
-  대시보드 대신 아래 SQL로 노출시켜 둔 상태:
+- ✅ **스키마 노출 완료** — dalmuti → `Settings → API → Exposed schemas`에
+  `incentive_admin` 추가됨 (대시보드 설정이라 영구 유지).
+  이게 없으면 JS 클라이언트가 `PGRST106 Invalid schema`로 전부 실패한다.
+- 참고: 노출 설정을 SQL로 바꿀 일이 생기면 캐시 갱신까지 해야 한다 (안 하면 `PGRST205`).
+  단, 아래는 대시보드 저장 시 덮어써지므로 임시 수단으로만 쓸 것.
   ```sql
   ALTER ROLE authenticator SET pgrst.db_schemas = 'public, graphql_public, incentive_admin';
-  NOTIFY pgrst, 'reload schema';   -- 스키마 캐시 갱신까지 해야 함 (안 하면 PGRST205)
+  NOTIFY pgrst, 'reload schema';
   ```
-  **이 설정은 대시보드에서 API 설정을 저장하면 덮어써진다.** 그러면 앱이 갑자기
-  `PGRST106 Invalid schema`로 깨진다. 증상이 보이면 위 SQL을 다시 실행하거나,
-  근본 해결로 dalmuti → `Settings → API → Exposed schemas`에 `incentive_admin`을
-  추가해 영구 설정으로 바꿀 것. (권장)
 - **env** (`.env.local` + Vercel 환경변수 — repo 커밋 금지, `.env*` gitignore):
   - `NEXT_PUBLIC_SUPABASE_URL=https://hvanvcjmnbalgghdiopn.supabase.co`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable key — Cowork 채팅/대시보드 참고>`
