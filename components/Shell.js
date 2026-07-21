@@ -86,7 +86,7 @@ export default function Shell({ children }) {
           </div>
         </header>
 
-        <main className="flex-1 p-8 max-w-[1240px] w-full mx-auto">{children}</main>
+        <main className="flex-1 px-10 py-7 w-full">{children}</main>
       </div>
 
       {toast && (
