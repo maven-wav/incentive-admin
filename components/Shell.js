@@ -20,9 +20,9 @@ export default function Shell({ children }) {
   const roleTone =
     persona.role === "내부"
       ? "bg-kakao-ink text-white"
-      : persona.role === "얼라이언스사"
-      ? "bg-kakao-yellow text-kakao-ink"
-      : "bg-emerald-500 text-white";
+      : persona.role === "대리점"
+      ? "bg-emerald-500 text-white"
+      : "bg-kakao-yellow text-kakao-ink";
 
   return (
     <div className="min-h-screen flex">

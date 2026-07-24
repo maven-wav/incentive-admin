@@ -35,7 +35,7 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-extrabold text-ink-900">대시보드</h1>
         <p className="text-sm text-ink-500 mt-1.5">
-          {persona.role} 관점 요약 — 우측 상단에서 역할을 바꿔 얼라이언스↔담당자 흐름을 확인해보세요.
+          {persona.role} 관점 요약 — 우측 상단에서 역할을 바꿔 대리점↔담당자 흐름을 확인해보세요.
         </p>
       </div>
 
