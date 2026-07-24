@@ -88,8 +88,11 @@ export default function Dashboard() {
               </li>
             ))}
           </ul>
-          <Link href="/incentives/review" className="inline-block mt-4 text-xs font-semibold text-ink-500 hover:text-ink-900">
-            시책 검수로 이동 →
+          <Link
+            href={persona.role === "내부" ? "/incentives/review" : "/incentives/mine"}
+            className="inline-block mt-4 text-xs font-semibold text-ink-500 hover:text-ink-900"
+          >
+            {persona.role === "내부" ? "시책 검수로 이동 →" : "내 시책 내역 보기 →"}
           </Link>
         </Card>
       </div>

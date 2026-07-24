@@ -9,6 +9,7 @@ const NAV = [
   { href: "/merchants/register", label: "가맹점 등록", icon: "＋", show: (p) => p.canRegister },
   { href: "/merchants", label: "등록내역", icon: "☰", show: () => true },
   { href: "/incentives/submit", label: "시책 접수", icon: "↥", show: (p) => p.canSubmitClaim },
+  { href: "/incentives/mine", label: "시책 내역", icon: "≣", show: (p) => p.canSubmitClaim },
   { href: "/incentives/review", label: "시책 검수", icon: "✓", show: (p) => p.canReviewClaim },
   { href: "/settlements", label: "지급/정산", icon: "₩", show: () => true },
 ];

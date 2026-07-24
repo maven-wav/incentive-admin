@@ -116,7 +116,7 @@ export default function SubmitClaim() {
       proofPhoto: needPhoto ? photo : null,
       txnTotal: isTxn ? Number(txnTotal) : undefined,
     });
-    if (created) router.push("/incentives/review");
+    if (created) router.push("/incentives/mine");
   };
 
   return (
@@ -246,7 +246,7 @@ export default function SubmitClaim() {
         )}
 
         <div className="flex justify-end gap-2 mt-7">
-          <Button variant="ghost" onClick={() => router.push("/incentives/review")}>취소</Button>
+          <Button variant="ghost" onClick={() => router.push("/incentives/mine")}>취소</Button>
           <Button variant="primary" disabled={!canSubmit} onClick={submit}>증빙 접수</Button>
         </div>
       </Card>

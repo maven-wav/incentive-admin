@@ -174,8 +174,9 @@ export default function RegisterMerchant() {
 
   const doRegister = async () => {
     const created = await registerMerchant({ ...form, agencyId: persona.scopeId });
-    // 가맹은 승인 없이 시책검수로 직행, 비가맹은 등록내역으로.
-    if (created) router.push(created.gamaeng ? "/incentives/review" : "/merchants");
+    // 가맹 시책은 백그라운드로 시책검수에 자동 접수되지만, 대리점은 시책검수에 접근할 수 없다.
+    // 따라서 가맹·비가맹 모두 등록내역으로 보낸다 (자동 접수 사실은 store의 flash 토스트로 안내).
+    if (created) router.push("/merchants");
   };
 
   const submit = (e) => {

@@ -145,7 +145,7 @@ export default function ReviewClaims() {
                         ) : (
                           <span className="text-xs text-ink-400">{c.reviewedBy || "—"}</span>
                         )}
-                        {perms.canDelete && c.status !== CLAIM_STATUS.PAID && (
+                        {perms.canDelete && (
                           <Button size="sm" variant="danger" className="ml-1" onClick={() => setDeleting(c)}>삭제</Button>
                         )}
                       </div>
@@ -201,7 +201,9 @@ export default function ReviewClaims() {
 }
 
 // 시책 삭제 — 되돌릴 수 없으므로 확인 모달을 거친다 (브라우저 confirm 대신).
+// 지급확정 건은 삭제가 예외적으로 허용되지만(되돌리기는 여전히 잠금) 강한 경고를 노출한다.
 function DeleteClaimModal({ claim, merchantName, onClose, onConfirm }) {
+  const paid = claim.status === CLAIM_STATUS.PAID;
   return (
     <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-pop w-full max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -210,7 +212,16 @@ function DeleteClaimModal({ claim, merchantName, onClose, onConfirm }) {
         </header>
         <div className="p-6">
           <Notice tone="warn">
-            <b>{claim.type}</b> 시책({claim.claimMonth})을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+            {paid ? (
+              <>
+                <b>지급확정된 시책입니다</b> — 삭제하면 지급 기록도 사라집니다. 계속하시겠어요?
+                <span className="block mt-1 text-ink-500">({claim.type} · {claim.claimMonth})</span>
+              </>
+            ) : (
+              <>
+                <b>{claim.type}</b> 시책({claim.claimMonth})을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+              </>
+            )}
           </Notice>
         </div>
         <footer className="px-6 py-4 border-t border-line flex justify-end gap-2">
