@@ -60,6 +60,8 @@ export function TypeTag({ children }) {
   const map = {
     가맹모집: "bg-amber-50 text-amber-700 border-amber-100",
     홍보물부착: "bg-sky-50 text-sky-700 border-sky-100",
+    비가맹결제건수: "bg-violet-50 text-violet-700 border-violet-100",
+    얼라이언스QR부착: "bg-teal-50 text-teal-700 border-teal-100",
   };
   return (
     <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-md border ${map[children] || "bg-slate-50 text-ink-500 border-line"}`}>

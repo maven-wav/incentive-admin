@@ -4,24 +4,42 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { uploadProof, proofPublicUrl } from "@/lib/supabase";
-import { Card, Field, Select, Button, Notice, TypeTag } from "@/components/ui";
-import { CLAIM_TYPES, INCENTIVE_AMOUNT, MERCHANT_STATUS, TXN_TOTAL_CRITERIA } from "@/lib/mockData";
+import { Card, Field, Input, Select, Button, Notice, TypeTag } from "@/components/ui";
+import {
+  CLAIM_TYPES,
+  INCENTIVE_AMOUNT,
+  MERCHANT_STATUS,
+  SUBMITTABLE_CLAIM_TYPES,
+  PHOTO_CLAIM_TYPES,
+  hasCid,
+} from "@/lib/mockData";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
 const thisMonth = "2026-07";
 
+// 접수 가능한 3유형 카드 메타 (가맹모집은 가맹 등록 시 자동 생성되어 여기 없음)
+const TYPE_META = {
+  [CLAIM_TYPES.NONGAMAENG_TXN]: { emoji: "💳", desc: "비가맹 가맹점 결제건수 시책 — 대리점이 결제건수 입력, 담당자 검수" },
+  [CLAIM_TYPES.ALLIANCE_QR]: { emoji: "🔗", desc: "얼라이언스 QR 20개 이상 부착 — 부착 사진 업로드" },
+  [CLAIM_TYPES.PROMO]: { emoji: "📸", desc: "홍보물 부착 — 부착 사진 업로드, 담당자 육안 검수" },
+};
+
 export default function SubmitClaim() {
   const router = useRouter();
-  const { persona, perms, visibleMerchants, agencyById, submitClaim } = useStore();
+  const { perms, visibleMerchants, agencyById, submitClaim } = useStore();
 
+  const [type, setType] = useState(SUBMITTABLE_CLAIM_TYPES[0]);
+
+  // 비가맹결제건수는 비가맹 승인완료 가맹점만, QR·홍보물은 승인완료 전체가 대상.
   const approved = visibleMerchants.filter((m) => m.status === MERCHANT_STATUS.APPROVED);
-  const [type, setType] = useState(CLAIM_TYPES.RECRUIT);
-  // 역할을 바꾸면 보이는 가맹점 목록이 통째로 달라진다. 이전 선택을 그대로 들고 있으면
-  // 드롭다운은 브라우저 기본값(첫 항목)을 보여주는데 실제 선택값은 목록에 없는 가맹점이라,
-  // 접수 버튼이 아무 설명 없이 잠긴다. 목록에 없으면 첫 항목으로 되돌린다.
+  const targets =
+    type === CLAIM_TYPES.NONGAMAENG_TXN ? approved.filter((m) => !hasCid(m.recruitType)) : approved;
+
+  // 역할·유형을 바꾸면 대상 목록이 통째로 달라진다. 이전 선택이 목록에 없으면 첫 항목으로 되돌린다.
   const [pickedId, setPickedId] = useState("");
-  const merchantId = approved.some((m) => m.id === pickedId) ? pickedId : approved[0]?.id || "";
+  const merchantId = targets.some((m) => m.id === pickedId) ? pickedId : targets[0]?.id || "";
   const [claimMonth, setClaimMonth] = useState(thisMonth);
+  const [txnTotal, setTxnTotal] = useState("");
   // photo = Storage 저장 경로 (proof_photo에 그대로 들어간다)
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -50,9 +68,11 @@ export default function SubmitClaim() {
     );
   }
 
-  const merchant = approved.find((m) => m.id === merchantId);
-  const needPhoto = type === CLAIM_TYPES.PROMO;
-  const canSubmit = merchant && (!needPhoto || photo) && !uploading;
+  const merchant = targets.find((m) => m.id === merchantId);
+  const needPhoto = PHOTO_CLAIM_TYPES.includes(type);
+  const isTxn = type === CLAIM_TYPES.NONGAMAENG_TXN;
+  const canSubmit =
+    merchant && (!needPhoto || photo) && (!isTxn || Number(txnTotal) > 0) && !uploading;
 
   // 파일 선택 · 드롭 공통 경로
   const handleFile = async (file) => {
@@ -94,6 +114,7 @@ export default function SubmitClaim() {
     const created = await submitClaim({
       merchantId, agencyId: merchant.agencyId, type, claimMonth,
       proofPhoto: needPhoto ? photo : null,
+      txnTotal: isTxn ? Number(txnTotal) : undefined,
     });
     if (created) router.push("/incentives/review");
   };
@@ -103,31 +124,28 @@ export default function SubmitClaim() {
       <div>
         <h1 className="text-2xl font-extrabold text-ink-900">시책 접수 (증빙 등록)</h1>
         <p className="text-sm text-ink-500 mt-1.5">
-          기 등록된 가맹점에 대해 시책을 접수합니다. 접수 완료 시 검수대기 상태로 진입합니다.
+          기 등록된 가맹점에 대해 시책을 접수합니다. 가맹모집은 가맹 등록 시 자동 접수되므로 여기서는 선택하지 않습니다.
         </p>
       </div>
 
-      <Card title="① 시책 유형 분기" desc="가맹 모집 / 홍보물 부착">
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { key: CLAIM_TYPES.RECRUIT, emoji: "🤝", desc: `가맹 연결 — 결제검수(가맹·활성화·3개월 총 ${TXN_TOTAL_CRITERIA}건)로 자동 판정` },
-            { key: CLAIM_TYPES.PROMO, emoji: "📸", desc: "홍보물 부착 — 부착 사진 업로드, 담당자 육안 검수" },
-          ].map((t) => (
+      <Card title="① 시책 유형 분기" desc="비가맹결제건수 / 얼라이언스QR부착 / 홍보물부착">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {SUBMITTABLE_CLAIM_TYPES.map((key) => (
             <button
-              key={t.key}
-              onClick={() => setType(t.key)}
+              key={key}
+              onClick={() => setType(key)}
               className={`text-left rounded-2xl border p-5 transition ${
-                type === t.key
+                type === key
                   ? "border-kakao-yellowD bg-kakao-yellow/15 ring-2 ring-kakao-yellow/40"
                   : "border-line bg-white hover:border-ink-300"
               }`}
             >
-              <div className="text-2xl">{t.emoji}</div>
+              <div className="text-2xl">{TYPE_META[key].emoji}</div>
               <div className="font-bold text-ink-900 mt-2 flex items-center gap-2">
-                {t.key} <TypeTag>{t.key}</TypeTag>
+                <TypeTag>{key}</TypeTag>
               </div>
-              <div className="text-xs text-ink-500 mt-1.5 leading-relaxed">{t.desc}</div>
-              <div className="text-xs font-semibold text-ink-700 mt-2">단가 {won(INCENTIVE_AMOUNT[t.key])}</div>
+              <div className="text-xs text-ink-500 mt-1.5 leading-relaxed">{TYPE_META[key].desc}</div>
+              <div className="text-xs font-semibold text-ink-700 mt-2">단가 {won(INCENTIVE_AMOUNT[key])}</div>
             </button>
           ))}
         </div>
@@ -135,10 +153,10 @@ export default function SubmitClaim() {
 
       <Card title="② 대상 가맹점 & 증빙">
         <div className="grid md:grid-cols-2 gap-5">
-          <Field label="가맹점 (승인완료 건만)">
+          <Field label={isTxn ? "가맹점 (비가맹 · 승인완료 건만)" : "가맹점 (승인완료 건만)"}>
             <Select value={merchantId} onChange={(e) => setPickedId(e.target.value)}>
-              {approved.length === 0 && <option value="">승인완료 가맹점 없음</option>}
-              {approved.map((m) => (
+              {targets.length === 0 && <option value="">대상 가맹점 없음</option>}
+              {targets.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({agencyById(m.agencyId)?.name})
                 </option>
@@ -154,9 +172,30 @@ export default function SubmitClaim() {
           </Field>
         </div>
 
+        {isTxn && (
+          <div className="mt-5">
+            <Field label="결제건수" hint="비가맹은 내부 확인이 불가해 대리점이 직접 입력합니다. 담당자가 검수 시 확인합니다.">
+              <Input
+                type="number"
+                min="1"
+                value={txnTotal}
+                onChange={(e) => setTxnTotal(e.target.value)}
+                placeholder="예) 12"
+              />
+            </Field>
+          </div>
+        )}
+
         {needPhoto && (
           <div className="mt-5">
-            <Field label="부착 사진 증빙" hint="이미지를 끌어다 놓거나 클릭해서 선택하면 Supabase Storage에 업로드됩니다.">
+            <Field
+              label={type === CLAIM_TYPES.ALLIANCE_QR ? "얼라이언스 QR 부착 사진" : "부착 사진 증빙"}
+              hint={
+                type === CLAIM_TYPES.ALLIANCE_QR
+                  ? "QR 20개 이상 부착 사진을 끌어다 놓거나 클릭해서 선택하면 Supabase Storage에 업로드됩니다."
+                  : "이미지를 끌어다 놓거나 클릭해서 선택하면 Supabase Storage에 업로드됩니다."
+              }
+            >
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
               {photo ? (
                 <div className="flex items-center gap-3 rounded-xl border border-line bg-canvas px-4 py-3">

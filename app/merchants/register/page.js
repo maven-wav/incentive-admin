@@ -3,27 +3,30 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import { Card, Field, Input, Select, Button, Notice } from "@/components/ui";
-import { STORE_TYPES, RECRUIT_TYPES, hasCid } from "@/lib/mockData";
+import { Card, Field, Input, Select, Button, Notice, Pill } from "@/components/ui";
+import { STORE_TYPES, RECRUIT_TYPES, MERCHANT_STATUS, hasCid } from "@/lib/mockData";
 import { inspectCid } from "@/lib/cid";
 import { SAMPLE_MERCHANTS, lookupByBizNo } from "@/lib/sampleMerchants";
 
 const STEPS = ["모집유형", "정보기재", "저장", "담당자 승인", "등록완료"];
 
-// 테스트 어드민용: 미등록 사업자번호를 골라 CID·가맹점명을 폼에 채운다.
+// 테스트 어드민용: 미등록 사업자번호를 골라 CID·가맹점명을 폼에 채운다. (홈 톤에 맞춘 디자인)
 function SampleMerchantModal({ registeredCids, onPick, onClose }) {
   return (
     <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-        <header className="px-6 py-4 border-b border-line">
-          <h3 className="font-bold text-ink-900">샘플 가맹점 올리기</h3>
-          <p className="text-xs text-ink-500 mt-1">미등록 사업자번호를 선택하면 CID·가맹점명이 자동 입력됩니다. (테스트용)</p>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line bg-kakao-yellow/15">
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-ink-900">샘플 가맹점 올리기</h3>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-kakao-ink text-white">TEST</span>
+          </div>
+          <p className="text-xs text-ink-500 mt-1">미등록 사업자번호를 선택하면 CID·가맹점명이 자동 입력됩니다. (실 조회 연동 전 임시)</p>
         </header>
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {SAMPLE_MERCHANTS.map((s) => (
-            <div key={s.bizNo}>
-              <div className="text-xs font-semibold text-ink-700 mb-1.5">{s.bizNo}</div>
-              <div className="space-y-1">
+            <div key={s.bizNo} className="rounded-xl border border-line p-3">
+              <div className="text-xs font-semibold text-ink-700 mb-2 font-mono">{s.bizNo}</div>
+              <div className="space-y-1.5">
                 {s.stores.map((st) => {
                   const used = registeredCids.has(st.cid);
                   return (
@@ -32,10 +35,16 @@ function SampleMerchantModal({ registeredCids, onPick, onClose }) {
                       type="button"
                       disabled={used}
                       onClick={() => onPick({ bizNo: s.bizNo, cid: st.cid, name: st.name })}
-                      className="w-full flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm text-left hover:border-kakao-yellowD disabled:opacity-40"
+                      className="w-full flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm text-left transition hover:border-kakao-yellowD hover:bg-kakao-yellow/10 disabled:opacity-50 disabled:hover:border-line disabled:hover:bg-transparent"
                     >
-                      <span>{st.name} <span className="font-mono text-xs text-ink-400">{st.cid}</span></span>
-                      {used && <span className="text-[10px] text-ink-400">등록됨</span>}
+                      <span className="text-ink-800">
+                        {st.name} <span className="font-mono text-xs text-ink-400 ml-1">{st.cid}</span>
+                      </span>
+                      {used ? (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-slate-50 text-ink-400 border-line">기등록</span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-kakao-ink">선택 →</span>
+                      )}
                     </button>
                   );
                 })}
@@ -45,6 +54,36 @@ function SampleMerchantModal({ registeredCids, onPick, onClose }) {
         </div>
         <footer className="px-6 py-4 border-t border-line flex justify-end">
           <Button variant="ghost" onClick={onClose}>닫기</Button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// 비가맹 계열에서 같은 사업자번호가 이미 있을 때 — 알리되 막지 않는다(한 사업자, 여러 가게).
+function BizDupConfirmModal({ sameBiz, onConfirm, onClose }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line">
+          <h3 className="font-bold text-ink-900">같은 사업자번호로 등록된 가맹점이 있습니다</h3>
+          <p className="text-xs text-ink-500 mt-1">한 사업자번호로 여러 가게를 운영할 수 있어 등록은 가능합니다. 확인 후 진행하세요.</p>
+        </header>
+        <div className="p-6">
+          <ul className="space-y-1.5">
+            {sameBiz.map((m) => (
+              <li key={m.id} className="flex items-center gap-2 text-xs text-ink-600">
+                <span className="font-semibold text-ink-800">{m.name}</span>
+                <span className="font-mono text-ink-400">{m.cid || "—"}</span>
+                <span className="text-ink-400">· {m.recruitType}</span>
+                <Pill>{m.status}</Pill>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <footer className="px-6 py-4 border-t border-line flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>취소</Button>
+          <Button variant="primary" onClick={onConfirm}>그래도 등록</Button>
         </footer>
       </div>
     </div>
@@ -67,6 +106,7 @@ export default function RegisterMerchant() {
     allianceId: "",
   });
   const [showSample, setShowSample] = useState(false);
+  const [showBizConfirm, setShowBizConfirm] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const isCidType = hasCid(form.recruitType);
@@ -74,6 +114,16 @@ export default function RegisterMerchant() {
 
   // 모집유형이 바뀌면 조회 상태(cid/가맹점명)를 초기화한다.
   const setRecruitType = (t) => setForm((f) => ({ ...f, recruitType: t, cid: "", name: "" }));
+
+  // 기등록 판정은 반려 건을 제외한다 → 반려·삭제된 CID/사업자번호는 재등록 허용(변경 3·5).
+  const activeMerchants = useMemo(
+    () => merchants.filter((m) => m.status !== MERCHANT_STATUS.REJECTED),
+    [merchants]
+  );
+  const registeredCids = useMemo(
+    () => new Set(activeMerchants.map((m) => m.cid).filter(Boolean)),
+    [activeMerchants]
+  );
 
   // 사업자번호(10자리)로 CID 후보 조회 — 샘플 풀 + 기존 등록건에서 찾는다.
   const bizDigits = form.bizNo.replace(/\D/g, "");
@@ -90,6 +140,12 @@ export default function RegisterMerchant() {
       return true;
     });
   }, [isCidType, bizDigits, merchants]);
+
+  // 같은 사업자번호로 이미 등록된 가맹점(반려 제외) — 안내용(변경 9·10).
+  const sameBiz = useMemo(() => {
+    if (bizDigits.length < 10) return [];
+    return activeMerchants.filter((m) => m.bizNo && m.bizNo.replace(/\D/g, "") === bizDigits);
+  }, [activeMerchants, bizDigits]);
 
   // 1건이면 자동 채움, 0건이면 이전 조회 결과를 비운다. N건이면 드롭다운으로 고른다.
   useEffect(() => {
@@ -112,16 +168,25 @@ export default function RegisterMerchant() {
     );
   }
 
-  const registeredCids = new Set(merchants.map((m) => m.cid).filter(Boolean));
+  const cidTaken = isCidType && !!form.cid && registeredCids.has(form.cid);
   const canSave =
-    form.name && form.bizNo && form.allianceId && (isCidType ? !!form.cid : true);
+    form.name && form.bizNo && form.allianceId && (isCidType ? !!form.cid : true) && !cidTaken;
 
-  const submit = async (e) => {
+  const doRegister = async () => {
+    const created = await registerMerchant({ ...form, agencyId: persona.scopeId });
+    // 가맹은 승인 없이 시책검수로 직행, 비가맹은 등록내역으로.
+    if (created) router.push(created.gamaeng ? "/incentives/review" : "/merchants");
+  };
+
+  const submit = (e) => {
     e.preventDefault();
     if (!canSave) return;
-    // 등록 실패 시 목록으로 넘기면 방금 만든 가맹점이 없어 혼란스럽다.
-    const created = await registerMerchant({ ...form, agencyId: persona.scopeId });
-    if (created) router.push("/merchants");
+    // 비가맹인데 같은 사업자번호가 있으면 확인 모달로 한 번 알린다(막지는 않음).
+    if (!isCidType && sameBiz.length > 0) {
+      setShowBizConfirm(true);
+      return;
+    }
+    doRegister();
   };
 
   return (
@@ -148,7 +213,7 @@ export default function RegisterMerchant() {
       </div>
 
       <form onSubmit={submit}>
-        <Card title="① 모집유형" desc="가맹 계열은 사업자번호로 CID를 자동 조회합니다. 비가맹 계열은 CID가 없습니다.">
+        <Card title="① 모집유형" desc="가맹 계열은 사업자번호로 CID를 자동 조회하고 승인 없이 시책검수로 넘어갑니다. 비가맹 계열은 CID가 없고 담당자 승인을 거칩니다.">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {RECRUIT_TYPES.map((t) => (
               <label
@@ -192,9 +257,14 @@ export default function RegisterMerchant() {
               {isCidType ? (
                 <div className="flex gap-2">
                   <Input value={form.bizNo} onChange={set("bizNo")} placeholder="000-00-00000" className="flex-1" />
-                  <Button type="button" variant="ghost" className="shrink-0" onClick={() => setShowSample(true)}>
-                    샘플 가맹점 올리기
-                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSample(true)}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-xl border border-kakao-yellowD bg-kakao-yellow/15 px-3 text-sm font-semibold text-ink-800 transition hover:bg-kakao-yellow/30"
+                  >
+                    <span className="text-kakao-ink">＋</span> 샘플
+                    <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-kakao-ink text-white">TEST</span>
+                  </button>
                 </div>
               ) : (
                 <Input value={form.bizNo} onChange={set("bizNo")} placeholder="000-00-00000" />
@@ -213,11 +283,14 @@ export default function RegisterMerchant() {
                       }}
                     >
                       <option value="">CID를 선택하세요</option>
-                      {candidates.map((c) => (
-                        <option key={c.cid} value={c.cid}>
-                          {c.cid} — {c.name}
-                        </option>
-                      ))}
+                      {candidates.map((c) => {
+                        const taken = registeredCids.has(c.cid);
+                        return (
+                          <option key={c.cid} value={c.cid} disabled={taken}>
+                            {c.cid} — {c.name}{taken ? " (기등록)" : ""}
+                          </option>
+                        );
+                      })}
                     </Select>
                   </Field>
                 )}
@@ -226,6 +299,11 @@ export default function RegisterMerchant() {
                   {form.cid && cidCheck.warning && (
                     <div className="mt-2">
                       <Notice tone="warn">⚠️ {cidCheck.warning}</Notice>
+                    </div>
+                  )}
+                  {cidTaken && (
+                    <div className="mt-2">
+                      <Notice tone="warn">이미 등록된 CID입니다. (반려·삭제된 건은 재등록 가능)</Notice>
                     </div>
                   )}
                 </Field>
@@ -257,8 +335,27 @@ export default function RegisterMerchant() {
           {isCidType && bizDigits.length >= 10 && candidates.length === 0 && (
             <div className="mt-4">
               <Notice tone="warn">
-                해당 사업자번호로 조회된 CID가 없습니다 — [샘플 가맹점 올리기]로 등록하거나 사업자번호를 확인하세요.
+                해당 사업자번호로 조회된 CID가 없습니다 — [＋ 샘플]로 등록하거나 사업자번호를 확인하세요.
               </Notice>
+            </div>
+          )}
+
+          {/* 변경 9 — 같은 사업자번호로 등록된 가맹점 안내 */}
+          {sameBiz.length > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+              <div className="text-xs font-semibold text-amber-800 mb-2">
+                이 사업자번호로 등록된 가맹점 {sameBiz.length}곳
+              </div>
+              <ul className="space-y-1.5">
+                {sameBiz.map((m) => (
+                  <li key={m.id} className="flex items-center gap-2 text-xs text-ink-600">
+                    <span className="font-semibold text-ink-800">{m.name}</span>
+                    <span className="font-mono text-ink-400">{m.cid || "—"}</span>
+                    <span className="text-ink-400">· {m.recruitType}</span>
+                    <Pill>{m.status}</Pill>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -281,6 +378,17 @@ export default function RegisterMerchant() {
             setShowSample(false);
           }}
           onClose={() => setShowSample(false)}
+        />
+      )}
+
+      {showBizConfirm && (
+        <BizDupConfirmModal
+          sameBiz={sameBiz}
+          onConfirm={() => {
+            setShowBizConfirm(false);
+            doRegister();
+          }}
+          onClose={() => setShowBizConfirm(false)}
         />
       )}
     </div>

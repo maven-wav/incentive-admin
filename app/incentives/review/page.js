@@ -12,12 +12,13 @@ const won = (n) => n.toLocaleString("ko-KR") + "원";
 export default function ReviewClaims() {
   const {
     perms, visibleClaims, merchantById, agencyById, allianceOfClaim,
-    reviewClaim, revertClaim, persona,
+    reviewClaim, revertClaim, deleteClaim, persona,
   } = useStore();
   const [fStatus, setFStatus] = useState("");
   const [checked, setChecked] = useState({});
   const [photo, setPhoto] = useState(null);
   const [reverting, setReverting] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   const rows = useMemo(
     () => visibleClaims.filter((c) => (fStatus ? c.status === fStatus : true)),
@@ -49,8 +50,8 @@ export default function ReviewClaims() {
         <div>
           <h1 className="text-2xl font-extrabold text-ink-900">시책 검수</h1>
           <p className="text-sm text-ink-500 mt-1.5">
-            가맹모집은 결제검수(가맹 · 활성화 · 3개월 총 결제 {TXN_TOTAL_CRITERIA}건 이상 → 자동충족),
-            홍보물부착은 부착 사진을 확인 후 승인합니다. 비가맹은 내부 확인이 불가해 수동 판단합니다.
+            가맹모집(가맹 등록 시 자동접수)은 결제검수(가맹 · 활성화 · 3개월 총 결제 {TXN_TOTAL_CRITERIA}건 이상 → 자동충족),
+            비가맹결제건수는 대리점이 입력한 건수를 수동 판단, QR·홍보물부착은 부착 사진을 확인 후 승인합니다.
           </p>
         </div>
         <span className="text-sm text-ink-400">{rows.length}건</span>
@@ -115,6 +116,13 @@ export default function ReviewClaims() {
                     <Td>
                       {c.type === CLAIM_TYPES.RECRUIT ? (
                         <PaymentReview claim={c} recruitType={m?.recruitType} />
+                      ) : c.type === CLAIM_TYPES.NONGAMAENG_TXN ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-ink-500 font-mono">{c.txnTotal ?? 0}건</span>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-100">
+                            수동판단
+                          </span>
+                        </div>
                       ) : (
                         <button className="text-xs font-semibold text-sky-600 hover:underline" onClick={() => setPhoto(c.proofPhoto)}>
                           🖼 사진 보기
@@ -124,18 +132,23 @@ export default function ReviewClaims() {
                     <Td className="font-semibold">{won(c.amount)}</Td>
                     <Td><Pill>{c.status}</Pill></Td>
                     <Td className="text-right pr-5 whitespace-nowrap">
-                      {c.status === CLAIM_STATUS.REVIEW ? (
-                        <span className="inline-flex gap-1.5">
-                          <Button size="sm" variant="approve" onClick={() => reviewClaim(c.id, true, persona.label)}>승인</Button>
-                          <Button size="sm" variant="danger" onClick={() => reviewClaim(c.id, false, persona.label)}>반려</Button>
-                        </span>
-                      ) : c.status === CLAIM_STATUS.PAID ? (
-                        <span className="text-xs text-ink-400" title="지급확정 건은 되돌릴 수 없습니다">🔒 지급확정</span>
-                      ) : perms.canRevertClaim ? (
-                        <Button size="sm" variant="ghost" onClick={() => setReverting(c)}>승인 취소</Button>
-                      ) : (
-                        <span className="text-xs text-ink-400">{c.reviewedBy || "—"}</span>
-                      )}
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        {c.status === CLAIM_STATUS.REVIEW ? (
+                          <>
+                            <Button size="sm" variant="approve" onClick={() => reviewClaim(c.id, true, persona.label)}>승인</Button>
+                            <Button size="sm" variant="danger" onClick={() => reviewClaim(c.id, false, persona.label)}>반려</Button>
+                          </>
+                        ) : c.status === CLAIM_STATUS.PAID ? (
+                          <span className="text-xs text-ink-400" title="지급확정 건은 되돌릴 수 없습니다">🔒 지급확정</span>
+                        ) : perms.canRevertClaim ? (
+                          <Button size="sm" variant="ghost" onClick={() => setReverting(c)}>승인 취소</Button>
+                        ) : (
+                          <span className="text-xs text-ink-400">{c.reviewedBy || "—"}</span>
+                        )}
+                        {perms.canDelete && c.status !== CLAIM_STATUS.PAID && (
+                          <Button size="sm" variant="danger" className="ml-1" onClick={() => setDeleting(c)}>삭제</Button>
+                        )}
+                      </div>
                     </Td>
                   </tr>
                 );
@@ -171,6 +184,40 @@ export default function ReviewClaims() {
           }}
         />
       )}
+
+      {deleting && (
+        <DeleteClaimModal
+          claim={deleting}
+          merchantName={merchantById(deleting.merchantId)?.name}
+          onClose={() => setDeleting(null)}
+          onConfirm={() => {
+            deleteClaim(deleting.id);
+            setDeleting(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// 시책 삭제 — 되돌릴 수 없으므로 확인 모달을 거친다 (브라우저 confirm 대신).
+function DeleteClaimModal({ claim, merchantName, onClose, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line">
+          <h3 className="font-bold text-ink-900">시책 삭제 — {merchantName}</h3>
+        </header>
+        <div className="p-6">
+          <Notice tone="warn">
+            <b>{claim.type}</b> 시책({claim.claimMonth})을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+          </Notice>
+        </div>
+        <footer className="px-6 py-4 border-t border-line flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>취소</Button>
+          <Button variant="danger" onClick={onConfirm}>삭제</Button>
+        </footer>
+      </div>
     </div>
   );
 }

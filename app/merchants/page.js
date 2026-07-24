@@ -8,7 +8,7 @@ import { MERCHANT_STATUS, RECRUIT_TYPES } from "@/lib/mockData";
 export default function MerchantList() {
   const {
     persona, perms, visibleMerchants, agencyById, allianceById,
-    setMerchantStatus, editMerchant, revertMerchantStatus,
+    setMerchantStatus, editMerchant, revertMerchantStatus, deleteMerchant,
   } = useStore();
 
   const [q, setQ] = useState("");
@@ -19,6 +19,18 @@ export default function MerchantList() {
   const [checked, setChecked] = useState({});
   const [editing, setEditing] = useState(null);
   const [reverting, setReverting] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [sibModal, setSibModal] = useState(null);
+
+  // 같은 사업자번호로 등록된 다른 가맹점(반려 제외, 자기 자신 제외) — 검수 시 중복 확인용(변경 11).
+  const siblingsOf = (m) =>
+    visibleMerchants.filter(
+      (x) =>
+        x.id !== m.id &&
+        x.status !== MERCHANT_STATUS.REJECTED &&
+        x.bizNo && m.bizNo &&
+        x.bizNo.replace(/\D/g, "") === m.bizNo.replace(/\D/g, "")
+    );
 
   const rows = useMemo(() => {
     return visibleMerchants.filter((m) => {
@@ -147,6 +159,16 @@ export default function MerchantList() {
                   <Td className="font-semibold text-ink-900">
                     {m.name}
                     {m.lastEditedBy && <span className="ml-1.5 text-[10px] text-amber-600 align-top">수정됨</span>}
+                    {siblingsOf(m).length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSibModal(m)}
+                        title="같은 사업자로 등록된 가맹점이 있어요"
+                        className="ml-1.5 align-top text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5 hover:bg-amber-100"
+                      >
+                        ⚠️ 같은 사업자
+                      </button>
+                    )}
                   </Td>
                   <Td className="text-ink-500">{m.bizNo}</Td>
                   <Td>{m.recruitType}</Td>
@@ -167,7 +189,10 @@ export default function MerchantList() {
                     {perms.canEditMerchant && (
                       <Button size="sm" variant="ghost" className="ml-1.5" onClick={() => setEditing(m)}>수정</Button>
                     )}
-                    {!perms.canApproveMerchant && !perms.canEditMerchant && <span className="text-xs text-ink-300">—</span>}
+                    {perms.canDelete && (
+                      <Button size="sm" variant="danger" className="ml-1.5" onClick={() => setDeleting(m)}>삭제</Button>
+                    )}
+                    {!perms.canApproveMerchant && !perms.canEditMerchant && !perms.canDelete && <span className="text-xs text-ink-300">—</span>}
                   </Td>
                 </tr>
               ))}
@@ -197,6 +222,76 @@ export default function MerchantList() {
           }}
         />
       )}
+
+      {deleting && (
+        <DeleteMerchantModal
+          merchant={deleting}
+          onClose={() => setDeleting(null)}
+          onConfirm={() => {
+            deleteMerchant(deleting.id);
+            setDeleting(null);
+          }}
+        />
+      )}
+
+      {sibModal && (
+        <SiblingsModal
+          merchant={sibModal}
+          siblings={siblingsOf(sibModal)}
+          agencyById={agencyById}
+          onClose={() => setSibModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// 가맹점 삭제 — 연결된 시책도 CASCADE로 함께 삭제된다. 되돌릴 수 없어 확인 모달을 거친다.
+function DeleteMerchantModal({ merchant, onClose, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line">
+          <h3 className="font-bold text-ink-900">가맹점 삭제 — {merchant.name}</h3>
+        </header>
+        <div className="p-6">
+          <Notice tone="warn">
+            이 가맹점과 <b>연결된 시책까지 함께 삭제</b>됩니다. 이 작업은 되돌릴 수 없습니다.
+          </Notice>
+        </div>
+        <footer className="px-6 py-4 border-t border-line flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>취소</Button>
+          <Button variant="danger" onClick={onConfirm}>삭제</Button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// 같은 사업자번호로 등록된 가맹점 목록 (중복 확인용)
+function SiblingsModal({ merchant, siblings, agencyById, onClose }) {
+  return (
+    <div className="fixed inset-0 z-40 bg-ink-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+        <header className="px-6 py-4 border-b border-line">
+          <h3 className="font-bold text-ink-900">같은 사업자번호로 등록된 가맹점</h3>
+          <p className="text-xs text-ink-500 mt-1 font-mono">{merchant.bizNo}</p>
+        </header>
+        <div className="p-6 space-y-2 max-h-[60vh] overflow-y-auto">
+          {siblings.map((m) => (
+            <div key={m.id} className="flex items-center gap-2 text-sm rounded-lg border border-line px-3 py-2">
+              <span className="font-semibold text-ink-800">{m.name}</span>
+              <span className="font-mono text-xs text-ink-400">{m.cid || "—"}</span>
+              <span className="text-xs text-ink-400">· {m.recruitType}</span>
+              <span className="text-xs text-ink-400">· {agencyById(m.agencyId)?.name}</span>
+              <span className="ml-auto"><Pill>{m.status}</Pill></span>
+            </div>
+          ))}
+        </div>
+        <footer className="px-6 py-4 border-t border-line flex justify-end">
+          <Button variant="ghost" onClick={onClose}>닫기</Button>
+        </footer>
+      </div>
     </div>
   );
 }
